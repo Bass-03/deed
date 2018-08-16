@@ -22,7 +22,9 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+## google Tasks
+
+You will need an [API key](https://developers.google.com/api-client-library/ruby/guide/aaa_apikeys)
 
 ## Development
 
