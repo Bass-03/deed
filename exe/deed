@@ -318,7 +318,7 @@ class Deed_Cli
         # Check google key file
         Config.check_google
         #Check default tasks exit
-        Helper.check_config_tasks
+        Helper.check_config_tasks @google_client
       end
     end
 
