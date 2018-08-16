@@ -331,6 +331,41 @@ class Deed_Cli
       end
     end
 
+    command :clear do |c|
+      c.syntax = 'doing clear'
+      c.description = 'Clear all completed tasks on the current list'
+      c.option '-l','--list STRING',String,'Overrides the current list'
+      c.action do |args,options|
+        if options.list
+          lists = @google_client.task_lists.items
+          list_to_clear = nil
+          lists.each do |list|
+            # ensure case matches
+            list_to_clear = list if list.title.downcase == options.list.downcase
+          end
+        else
+          list_to_clear = Config.data[:current_list]
+        end
+        if !list_to_clear
+          Helper.print_message "List not found"
+          exit
+        end
+        #ensure is hash
+        list_to_clear = list_to_clear.to_h
+        # deleting the completed tasks
+        tasks_to_clear = @google_client.tasks(list_to_clear[:id],true).items
+        deleted_tasks = []
+        Helper.print_message "Cleared:"
+        tasks_to_clear.each do |task|
+          if task.status == 'completed'
+            @google_client.delete_task list_to_clear[:id],task.id
+            deleted_tasks << task
+          end
+        end
+        Helper.pretty_print_tasks list_to_clear[:title],deleted_tasks
+      end
+    end
+
     command :config do |c|
       c.syntax = 'doing config'
       c.description = 'Check if config files are set and if google can '
