@@ -19,7 +19,7 @@ module Deed
       @credentials = authorizer.get_credentials(user_id)
       if credentials.nil?
         url = authorizer.get_authorization_url(base_url: oob_uri )
-        puts "Open #{url} in your browser and enter the resulting code:"
+        STDOUT.puts "Open #{url} in your browser and enter the resulting code:"
         code = STDIN.gets
         @credentials = authorizer.get_and_store_credentials_from_code(
           user_id: user_id, code: code, base_url: oob_uri)
@@ -49,10 +49,10 @@ module Deed
     end
     # Get a single task from a given task list
     # @return task
-    def task(task_list_id,task_id)
+    def task(task_id)
       tasks_client = Google::Apis::TasksV1::TasksService.new
       tasks_client.authorization = @credentials
-      return tasks_client.get_task(task_list_id,task_id)
+      return tasks_client.get_task("@default",task_id)
     end
     # Insert a new task list
     # @param task_list_info [Hash] information for new task list, ie: title: "title"
@@ -98,21 +98,21 @@ module Deed
     # @param task_list_id [String] task list id
     # @param task_id [String] task id
     # @param task_list_info [Hash] information for new task, ie: title: "title"
-    def update_task(task_list_id,task_id,**task_info)
+    def update_task(task_id,**task_info)
       google = Deed::Google_api.new
       task_data = google.task(task_list_id,task_id)
       task_data.update!(task_info)
       tasks_client = Google::Apis::TasksV1::TasksService.new
       tasks_client.authorization = @credentials
-      tasks_client.update_task(task_list_id,task_id,task_data)
+      tasks_client.update_task("@default",task_id,task_data)
     end
     # delete a task
     # @param task_list_id [String] task list id
     # @param task_id [String] task id
-    def delete_task(task_list_id,task_id)
+    def delete_task(task_id)
       tasks_client = Google::Apis::TasksV1::TasksService.new
       tasks_client.authorization = @credentials
-      tasks_client.delete_task(task_list_id,task_id)
+      tasks_client.delete_task("@default",task_id)
     end
   end
 end

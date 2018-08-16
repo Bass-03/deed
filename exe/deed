@@ -59,7 +59,12 @@ class Deed_Cli
             else
               # Select parent list if list was not found
               Helper.print_list_selection lists
-              parent_list = lists[ask("Choose list to create task? : ", Integer)]
+              list_index = ask("Choose list to create task? (index): ", Integer)
+              while list_index > lists.size
+                Helper.print_message "No List Selected"
+                list_index = ask("Which is your default list? (index): ", Integer)
+              end
+              parent_list = lists[list_index]
             end
           end
         end
@@ -120,7 +125,7 @@ class Deed_Cli
           tasks = @google_client.tasks(list.id,options.all).items
           task_count = Helper.pretty_print_tasks list.title,tasks, task_count
         end
-        choice = ask("Which task? : ", Integer)
+        choice = ask("Which task? (index): ", Integer)
         # Find chosen task
         selected_list = nil
         selected_task = nil
@@ -138,7 +143,7 @@ class Deed_Cli
         end
         #exit if choice does not match anything
         if !selected_task
-          Helper.print_message "no task selected"
+          Helper.print_message "No task Selected"
           exit
         end
         #Update selected tasks
@@ -181,8 +186,8 @@ class Deed_Cli
           options.status = "completed" if options.status.downcase == "completed"
           options.status = "needsAction" if options.status.downcase == "needsaction"
           if options.status!= 'needsAction' and options.status != "completed"
-            puts "status '#{options.status}' is incorrect, must be either 'needsAction' or 'completed'"
-            #exit
+            Helper.print_message "status '#{options.status}' is incorrect, must be either 'needsAction' or 'completed'"
+            exit
           end
         end
         #make sure status options are correct
@@ -200,7 +205,7 @@ class Deed_Cli
           task_info[:completed] = nil #need to set completed to nil so it works
         end
         task_info[:status] = options.status if options.status
-        updated_task = @google_client.update_task(current_list[:id],current_task[:id],task_info)
+        updated_task = @google_client.update_task(current_task[:id],task_info)
         Helper.pretty_print_tasks current_list[:title],[updated_task]
       end
     end
@@ -226,7 +231,7 @@ class Deed_Cli
             task_info = {notes: args.join(" ")}
           end
         end
-        noted_task = @google_client.update_task(current_list[:id],current_task[:id],task_info)
+        noted_task = @google_client.update_task(current_task[:id],task_info)
         Helper.pretty_print_tasks current_list[:title],[noted_task]
       end
     end
@@ -242,7 +247,7 @@ class Deed_Cli
         #task base information
         task_info = {status: "completed"} if !options.not
         task_info = {status: "needsAction", completed: nil} if options.not
-        finished_task = @google_client.update_task(current_list[:id],current_task[:id],task_info)
+        finished_task = @google_client.update_task(current_task[:id],task_info)
         Helper.pretty_print_tasks current_list[:title],[finished_task]
       end
     end
@@ -254,7 +259,7 @@ class Deed_Cli
         #getting current task and list
         current_task = Config.data[:current_task]
         current_list = Config.data[:current_list]
-        @google_client.delete_task(current_list[:id],current_task[:id])
+        @google_client.delete_task(current_task[:id])
         Helper.check_config_tasks @google_client
         Helper.pretty_print_tasks current_list[:title],[current_task]
       end
@@ -288,16 +293,41 @@ class Deed_Cli
       c.description = 'Setup default task list'
       c.action do |args, options|
         lists = @google_client.task_lists.items
-        lists.each_with_index do |list,index|
-          puts index.to_s + " - " + list.title
+        Helper.print_list_selection lists
+        list_index = ask("Which is your default list? (index): ", Integer)
+        while list_index > lists.size
+          Helper.print_message "No List Selected"
+          list_index = ask("Which is your default list? (index): ", Integer)
         end
-        default_list = lists[ask("Which is your default list? : ", Integer)]
+        default_list = lists[list_index]
         default_list ={ id: default_list.id,
                         title: default_list.title,
                         updated: default_list.updated
                         }
         Config.set_value "default_list",default_list
         Helper.pretty_print_tasks default_list[:title]
+      end
+    end
+
+    command :list do |c|
+      c.syntax = 'doing list'
+      c.description = 'Sets the current list'
+      c.action do |args, options|
+        lists = @google_client.task_lists.items
+        Helper.print_list_selection lists
+        list_index = ask("Which list? (index): ", Integer)
+        while list_index > lists.size
+          Helper.print_message "No List Selected"
+          list_index = ask("Which is your default list? (index): ", Integer)
+        end
+        current_list = lists[list_index]
+        current_list ={ id: current_list.id,
+                        title: current_list.title,
+                        updated: current_list.updated
+                        }
+
+        Config.set_value "current_list",current_list
+        Helper.pretty_print_tasks current_list[:title]
       end
     end
 
@@ -310,7 +340,7 @@ class Deed_Cli
         # Check google key file
         Config.check_google
         #Check default tasks exit
-        Helper.check_config_tasks
+        Helper.check_config_tasks @google_client
       end
     end
 
@@ -326,14 +356,22 @@ class Deed_Cli
   end
 end
 
-if $0 == __FILE__
+if $0 == $PROGRAM_NAME
   begin
+    #Handle debug flag
+    debug = false
+    if ARGV.include? "--debug"
+      ARGV.delete("--debug")
+      puts " ==== debugging ==="
+      debug = true
+    end
     cli = Deed_Cli.new
-    #cli.never_trace!
+    cli.never_trace!
     cli.run
   rescue Interrupt
-    puts "\nInterrupted"
-  # rescue Google::Apis::ClientError => e
-  #   puts "\n#{e.message}"
+    STDOUT.puts "\nInterrupted"
+  rescue Google::Apis::ClientError => e
+    STDOUT.puts "\nError: " + e.message
+    STDOUT.puts "\n" + e.backtrace.join("\n") if debug
   end
 end

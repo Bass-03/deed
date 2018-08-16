@@ -13,12 +13,12 @@ module Deed
       @config_path = path
       # check if config dir exists
       if !File.directory? @config_path
-        puts "Creating folder '#{@config_path}'"
+        Helper.print_message "Creating folder '#{@config_path}'"
         system "mkdir -p #{@config_path}"
       end
       #check if config file exists
       if !File.file? "#{@config_path}/config.json"
-        puts "creating config.json in #{@config_path}"
+        Helper.print_message "creating config.json in #{@config_path}"
         system "touch #{@config_path}/config.json" #create config file
         #adding empty json to config.json
         baseConfig = {
