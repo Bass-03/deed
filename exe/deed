@@ -309,6 +309,28 @@ class Deed_Cli
       end
     end
 
+    command :list do |c|
+      c.syntax = 'doing list'
+      c.description = 'Sets the current list'
+      c.action do |args, options|
+        lists = @google_client.task_lists.items
+        Helper.print_list_selection lists
+        list_index = ask("Which list? (index): ", Integer)
+        while list_index > lists.size
+          Helper.print_message "No List Selected"
+          list_index = ask("Which is your default list? (index): ", Integer)
+        end
+        current_list = lists[list_index]
+        current_list ={ id: current_list.id,
+                        title: current_list.title,
+                        updated: current_list.updated
+                        }
+
+        Config.set_value "current_list",current_list
+        Helper.pretty_print_tasks current_list[:title]
+      end
+    end
+
     command :config do |c|
       c.syntax = 'doing config'
       c.description = 'Check if config files are set and if google can '
