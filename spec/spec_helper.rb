@@ -1,5 +1,6 @@
 require "bundler/setup"
 require "deed"
+require "google_api"
 
 RSpec.configure do |config|
   # Enable flags like --only-failures and --next-failure
