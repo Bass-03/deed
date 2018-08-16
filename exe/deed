@@ -59,7 +59,12 @@ class Deed_Cli
             else
               # Select parent list if list was not found
               Helper.print_list_selection lists
-              parent_list = lists[ask("Choose list to create task? : ", Integer)]
+              list_index = ask("Choose list to create task? (index): ", Integer)
+              while list_index > lists.size
+                Helper.print_message "No List Selected"
+                list_index = ask("Which is your default list? (index): ", Integer)
+              end
+              parent_list = lists[list_index]
             end
           end
         end
@@ -138,7 +143,7 @@ class Deed_Cli
         end
         #exit if choice does not match anything
         if !selected_task
-          Helper.print_message "no task selected"
+          Helper.print_message "No task Selected"
           exit
         end
         #Update selected tasks
@@ -288,10 +293,13 @@ class Deed_Cli
       c.description = 'Setup default task list'
       c.action do |args, options|
         lists = @google_client.task_lists.items
-        lists.each_with_index do |list,index|
-          puts index.to_s + " - " + list.title
+        Helper.print_list_selection lists
+        list_index = ask("Which is your default list? (index): ", Integer)
+        while list_index > lists.size
+          Helper.print_message "No List Selected"
+          list_index = ask("Which is your default list? (index): ", Integer)
         end
-        default_list = lists[ask("Which is your default list? : ", Integer)]
+        default_list = lists[list_index]
         default_list ={ id: default_list.id,
                         title: default_list.title,
                         updated: default_list.updated
