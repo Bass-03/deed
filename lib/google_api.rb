@@ -19,7 +19,7 @@ module Deed
       @credentials = authorizer.get_credentials(user_id)
       if credentials.nil?
         url = authorizer.get_authorization_url(base_url: oob_uri )
-        puts "Open #{url} in your browser and enter the resulting code:"
+        STDOUT.puts "Open #{url} in your browser and enter the resulting code:"
         code = STDIN.gets
         @credentials = authorizer.get_and_store_credentials_from_code(
           user_id: user_id, code: code, base_url: oob_uri)
