@@ -20,23 +20,23 @@ class Config
   # @return google client
   def self.check_google(print_it = true)
       if !File.file? "#{@config_path}/client_id.json"
-        puts "Missing OAuth2 keys, you need the #{@config_path}/client_id.json file"
-        puts "Get te file from google's API Console, it needs access to Tasks only"
-        puts "https://developers.google.com/api-client-library/ruby/guide/aaa_apikeys"
+        STDOUT.puts "Missing OAuth2 keys, you need the #{@config_path}/client_id.json file"
+        STDOUT.puts "Get te file from google's API Console, it needs access to Tasks only"
+        STDOUT.puts "https://developers.google.com/api-client-library/ruby/guide/aaa_apikeys"
         exit
       end
       #Check Google is authorized
       begin
         google = Deed::Google_api.new
       rescue Exception => e
-        puts e.message
-        puts "deleting tokens.yaml as measure"
+        STDOUT.puts e.message
+        STDOUT.puts "deleting tokens.yaml as measure"
         system "rm #{@config_path}/tokens.yaml"
-        puts "try checking the credentials if error persists"
+        STDOUT.puts "try checking the credentials if error persists"
         exit
       end
-      puts "Google credentian expires at: " + google.credentials.expires_at.to_s if print_it
-      puts "Google Checked, all ok" if print_it
+      STDOUT.puts "Google credentian expires at: " + google.credentials.expires_at.to_s if print_it
+      STDOUT.puts "Google Checked, all ok" if print_it
       return google
   end
   # Store new data on the config file
@@ -61,10 +61,8 @@ class Helper
     current_list = catch_error {google_client.task_list(Config.data[:current_list][:id])}
     default_list = catch_error {google_client.task_list(Config.data[:default_list][:id])}
     #set value to nil if the response is an error
-    if current_task.kind_of? Exception or current_list.kind_of? Exception
-      Config.set_value("current_task",nil)
-      Config.set_value("current_list",nil)
-    end
+    Config.set_value("current_task",nil) if current_task.kind_of? Exception
+    Config.set_value("current_list",nil) if current_list.kind_of? Exception
     Config.set_value("default_list",nil) if default_list.kind_of? Exception
   end
   # parse natural language date to rfc3339
@@ -79,16 +77,17 @@ class Helper
   # @param doing [Boolean] Print only the current task
   def self.print_message(text)
     colors = Config.data[:colors]
-    puts Rainbow(text).color(colors[:message].to_sym).bright
+    STDOUT.puts Rainbow(text).color(colors[:message].to_sym).bright
   end
   # pretty print a lists
   # @param listName [String] list title to print
   def self.print_list_selection(lists)
     lists.each_with_index do |list,index|
-      printf "%s",Rainbow(index.to_s + " " * lists.count.to_s.size).color(:webgray).bright
-      printf "%s",Rainbow("|").color(:green).bright #separator
-      printf "%s",Rainbow(list.title).color(:silver)
-      printf "\n"
+      colors = Config.data[:colors]
+      STDOUT.printf "%s",Rainbow(index.to_s + " " * lists.count.to_s.size).color(colors[:count].to_sym).bright
+      STDOUT.printf "%s",Rainbow("|").color(colors[:separator].to_sym).bright #separator
+      STDOUT.printf "%s",Rainbow(list.title).color(colors[:list].to_sym)
+      STDOUT.printf "\n"
     end
   end
   #print tasks for selection
@@ -104,8 +103,8 @@ class Helper
     current_task = Config.data[:current_task]
     colors = Config.data[:colors]
     #Print list title
-    printf "%s",Rainbow(listName).color(colors[:list].to_sym).bright.underline
-    printf "\n"
+    STDOUT.printf "%s",Rainbow(listName).color(colors[:list].to_sym).bright.underline
+    STDOUT.printf "\n"
     # if no tasks on list
     if !tasks
       print_message("No tasks on this list") #separator"No tasks on this list"
@@ -113,15 +112,15 @@ class Helper
       tasks.each do |task|
         task = task.to_h #make sure task is a hash
         # Print spaces needed on count for all the digits is hsa
-        print Rainbow(sprintf("%4d", count_start)).color(colors[:count].to_sym).bright
-        printf "%s",Rainbow("|").color(colors[:separator].to_sym).bright #separator
+        print Rainbow(STDOUT.printf("%4d", count_start)).color(colors[:count].to_sym).bright
+        STDOUT.printf "%s",Rainbow("|").color(colors[:separator].to_sym).bright #separator
         #date shoud always have the same lenght
         due_date = task[:due] ? task[:due].strftime("%b %d") : "      "
-        printf "%s",Rainbow(due_date).color(colors[:due_date].to_sym).bright
-        printf "%s",Rainbow("|").color(colors[:separator].to_sym).bright #separator
+        STDOUT.printf "%s",Rainbow(due_date).color(colors[:due_date].to_sym).bright
+        STDOUT.printf "%s",Rainbow("|").color(colors[:separator].to_sym).bright #separator
         #status,
         status = task[:status] == "completed" ? " (X) " : " ( ) "
-        printf "%s",Rainbow(status).color(colors[:status].to_sym).bright
+        STDOUT.printf "%s",Rainbow(status).color(colors[:status].to_sym).bright
         # task color depends on doing and status
         task_color = nil
         if current_task
@@ -130,12 +129,12 @@ class Helper
         #defailts to task color
         task_color = colors[:task] if !task_color
         subtask_arrow = task[:parent] ? "-> " : ""
-        printf "%s",Rainbow(subtask_arrow + task[:title]).color(task_color.to_sym).bright
-        printf "\n"
+        STDOUT.printf "%s",Rainbow(subtask_arrow + task[:title]).color(task_color.to_sym).bright
+        STDOUT.printf "\n"
         if task[:notes]
           #Start comment at tab distance
-          printf "\t%s", Rainbow(task[:notes]).color(colors[:notes].to_sym).gsub("\n","\n\t")
-          printf "\n"
+          STDOUT.printf "\t%s", Rainbow(task[:notes]).color(colors[:notes].to_sym).gsub("\n","\n\t")
+          STDOUT.printf "\n"
         end
         count_start += 1
       end
@@ -178,7 +177,7 @@ class Helper
     # Check current list and task
     if Config.data[:current_task] and Config.data[:current_task]
       current_list = google.task_list(Config.data[:current_list][:id])
-      current_task = google.task(current_list.id,Config.data[:current_task][:id])
+      current_task = google.task(Config.data[:current_task][:id])
       # Update current data in config file
       self.update_selected(current_list,current_task)
     end
