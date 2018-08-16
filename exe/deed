@@ -334,14 +334,22 @@ class Deed_Cli
   end
 end
 
-if $0 == __FILE__
+if $0 == $PROGRAM_NAME
   begin
+    #Handle debug flag
+    debug = false
+    if ARGV.include? "--debug"
+      ARGV.delete("--debug")
+      puts " ==== debugging ==="
+      debug = true
+    end
     cli = Deed_Cli.new
-    #cli.never_trace!
+    cli.never_trace!
     cli.run
   rescue Interrupt
-    puts "\nInterrupted"
-  # rescue Google::Apis::ClientError => e
-  #   puts "\n#{e.message}"
+    STDOUT.puts "\nInterrupted"
+  rescue Google::Apis::ClientError => e
+    STDOUT.puts "\nError: " + e.message
+    STDOUT.puts "\n" + e.backtrace.join("\n") if debug
   end
 end
