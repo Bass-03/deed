@@ -57,7 +57,7 @@ class Helper
   end
   # Check if current task, list and default list still exist
   def self.check_config_tasks(google_client)
-    current_task = catch_error {google_client.task("@default",Config.data[:current_task][:id])}
+    current_task = catch_error {google_client.task(Config.data[:current_list][:id],Config.data[:current_task][:id])}
     current_list = catch_error {google_client.task_list(Config.data[:current_list][:id])}
     default_list = catch_error {google_client.task_list(Config.data[:default_list][:id])}
     #set value to nil if the response is an error
@@ -177,7 +177,7 @@ class Helper
     # Check current list and task
     if Config.data[:current_task] and Config.data[:current_task]
       current_list = google.task_list(Config.data[:current_list][:id])
-      current_task = google.task(Config.data[:current_task][:id])
+      current_task = google.task(current_list.id,Config.data[:current_task][:id])
       # Update current data in config file
       self.update_selected(current_list,current_task)
     end

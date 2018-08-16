@@ -205,7 +205,7 @@ class Deed_Cli
           task_info[:completed] = nil #need to set completed to nil so it works
         end
         task_info[:status] = options.status if options.status
-        updated_task = @google_client.update_task(current_task[:id],task_info)
+        updated_task = @google_client.update_task(current_list[:id],current_task[:id],task_info)
         Helper.pretty_print_tasks current_list[:title],[updated_task]
       end
     end
@@ -231,7 +231,7 @@ class Deed_Cli
             task_info = {notes: args.join(" ")}
           end
         end
-        noted_task = @google_client.update_task(current_task[:id],task_info)
+        noted_task = @google_client.update_task(current_list[:id],current_task[:id],task_info)
         Helper.pretty_print_tasks current_list[:title],[noted_task]
       end
     end
@@ -247,7 +247,7 @@ class Deed_Cli
         #task base information
         task_info = {status: "completed"} if !options.not
         task_info = {status: "needsAction", completed: nil} if options.not
-        finished_task = @google_client.update_task(current_task[:id],task_info)
+        finished_task = @google_client.update_task(current_list[:id],current_task[:id],task_info)
         Helper.pretty_print_tasks current_list[:title],[finished_task]
       end
     end
@@ -259,7 +259,7 @@ class Deed_Cli
         #getting current task and list
         current_task = Config.data[:current_task]
         current_list = Config.data[:current_list]
-        @google_client.delete_task(current_task[:id])
+        @google_client.delete_task(current_list[:id],current_task[:id])
         Helper.check_config_tasks @google_client
         Helper.pretty_print_tasks current_list[:title],[current_task]
       end
@@ -328,6 +328,41 @@ class Deed_Cli
 
         Config.set_value "current_list",current_list
         Helper.pretty_print_tasks current_list[:title]
+      end
+    end
+
+    command :clear do |c|
+      c.syntax = 'doing clear'
+      c.description = 'Clear all completed tasks on the current list'
+      c.option '-l','--list STRING',String,'Overrides the current list'
+      c.action do |args,options|
+        if options.list
+          lists = @google_client.task_lists.items
+          list_to_clear = nil
+          lists.each do |list|
+            # ensure case matches
+            list_to_clear = list if list.title.downcase == options.list.downcase
+          end
+        else
+          list_to_clear = Config.data[:current_list]
+        end
+        if !list_to_clear
+          Helper.print_message "List not found"
+          exit
+        end
+        #ensure is hash
+        list_to_clear = list_to_clear.to_h
+        # deleting the completed tasks
+        tasks_to_clear = @google_client.tasks(list_to_clear[:id],true).items
+        deleted_tasks = []
+        Helper.print_message "Cleared:"
+        tasks_to_clear.each do |task|
+          if task.status == 'completed'
+            @google_client.delete_task list_to_clear[:id],task.id
+            deleted_tasks << task
+          end
+        end
+        Helper.pretty_print_tasks list_to_clear[:title],deleted_tasks
       end
     end
 
