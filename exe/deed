@@ -1,0 +1,339 @@
+#!/usr/bin/env ruby
+require "bundler/setup"
+require 'commander'
+require 'helpers'
+
+class Deed_Cli
+  include Commander::Methods
+  def run
+    # == Run this before
+    # Checks config file, google client and updates selected task and list data
+    @google_client = Helper.pre_checks
+    # program metadata
+    program :name, 'deed'
+    program :version, '1.0.0'
+    program :description, 'A google-tasks CLI'
+    program :help, 'Author', 'Edmundo Sánchez <zomundo@gmail.com>'
+    program :help_formatter, :compact
+    default_command :show
+
+    command :new do |c|
+      c.syntax = 'deed new <title> [options]'
+      c.description = 'Create a new task on the default list'
+      c.option '-l','--list STRING', String,  "Specify a different list"
+      c.option '-d','--due-date Date',String, "Set a due date, defaults to today"
+      c.option '-n','--notes STRING', String, "Append notes to task"
+      c.action do |args, options|
+        #defaults
+        options.default :notes => nil, :due_date => "today"
+        #parse date if date specified
+        options.due_date = Helper.date_parse(options.due_date) if options.due_date
+        #get data from config
+        default_list = Config.data[:default_list]
+        #Check if task and list data are read
+        if !options.list and !default_list
+          Helper.print_message "There is no default list set, set one first with `deed default`"
+          exit
+        end
+        #info from google
+        lists = @google_client.task_lists.items
+        #task base information
+        task_info = {title: args.join(" "), notes: options.notes, due: options.due_date}
+        # if using default list
+        if !options.list and default_list[:id]
+          parent_list = default_list
+        elsif options.list
+          parent_list = nil
+          # find list by title
+          lists.each do |list|
+            # ensure case matches
+            parent_list = list if list.title.downcase == options.list.downcase
+          end
+          if !parent_list
+            # Ask to create list if list not found
+            Helper.print_message "Task list '#{options.list}' not found"
+            create_new_list = agree("Do you want to create this list? : ")
+            # Ask to create list if list not found
+            if create_new_list
+              parent_list = @google_client.new_task_list title: options.list
+            else
+              # Select parent list if list was not found
+              Helper.print_list_selection lists
+              parent_list = lists[ask("Choose list to create task? : ", Integer)]
+            end
+          end
+        end
+        #parent list could be a hash or a Google::Task
+        #make sure parent_list is a hash
+        parent_list = parent_list.to_h
+        new_task = @google_client.new_task(parent_list[:id],task_info)
+        Helper.pretty_print_tasks(parent_list[:title],[new_task])
+      end
+    end
+
+    command :subtask do |c|
+      c.syntax = 'deed subtask <title> [options]'
+      c.description = 'Create a new task under the current task'
+      c.option '-d','--due-date Date',String, "Set a due date, defaults to today"
+      c.option '-n','--notes STRING', String, "Append notes to task"
+      c.action do |args, options|
+        #defaults
+        options.default :notes => nil, :due_date => "today"
+        #parse date if date specified
+        options.due_date = Helper.date_parse(options.due_date) if options.due_date
+        #getting current task and list
+        current_task = Config.data[:current_task]
+        current_list = Config.data[:current_list]
+        #task base information
+        if current_task and current_list
+          task_info = {title: args.join(" "), notes: options.notes, due: options.due_date, parent: current_task[:id]}
+          sub_task = @google_client.new_task(current_list[:id],task_info)
+          Helper.pretty_print_tasks(current_list[:title],[sub_task])
+        else
+          Helper.print_message "There is no current task set, run 'deed do'"
+        end
+      end
+    end
+
+    command :show do |c|
+      c.syntax = 'deed show'
+      c.description = 'List tasks'
+      c.action do |args, options|
+        lists = @google_client.task_lists.items
+        lists.each do |list|
+          # all tasks, including completed
+          tasks = @google_client.tasks(list.id,true).items
+            Helper.pretty_print_tasks(list.title,tasks)
+        end
+      end
+    end
+
+    command :do do |c|
+      c.syntax = 'deed do'
+      c.description = 'Set a task as currently doing, its list is also set'
+      c.option '-a','--all','Show completed tasks aswell'
+      c.action do |args, options|
+        # Choose the task
+        lists = @google_client.task_lists.items
+        task_count = 0
+        lists.each do |list|
+          tasks = @google_client.tasks(list.id,options.all).items
+          task_count = Helper.pretty_print_tasks list.title,tasks, task_count
+        end
+        choice = ask("Which task? : ", Integer)
+        # Find chosen task
+        selected_list = nil
+        selected_task = nil
+        lists.each do |list|
+          tasks_in_list = @google_client.tasks(list.id,options.all).items
+          if tasks_in_list #only do this if list has tasks
+            if tasks_in_list.size <= choice
+              choice -= tasks_in_list.size
+            else
+              selected_list = list
+              selected_task = tasks_in_list[choice]
+              break
+            end
+          end
+        end
+        #exit if choice does not match anything
+        if !selected_task
+          Helper.print_message "no task selected"
+          exit
+        end
+        #Update selected tasks
+        Helper.update_selected selected_list,selected_task
+      end
+    end
+
+    command :doing do |c|
+      c.syntax = 'deed doing'
+      c.description = 'Shows which task is set to "doing" and its sub tasks'
+      c.action do |args, options|
+        current_task = Config.data[:current_task]
+        current_list = Config.data[:current_list]
+        if !current_task or !current_list
+          Helper.print_message "No current task set, run 'deed do'"
+          exit
+        end
+        # Get tasks in list, including completed
+        tasks_in_list = @google_client.tasks(current_list[:id],true).items
+        # remove all tasks that are not the current task or a subtask of it
+        tasks_in_list.each do |task|
+          tasks_in_list.delete(task) if task.id != current_task[:id] and task.parent != current_task[:id]
+        end
+        # pretty print, including completed
+        Helper.pretty_print_tasks current_list[:title],tasks_in_list
+      end
+    end
+
+    command :edit do |c|
+      c.syntax = 'deed edit <title> [options]'
+      c.description = 'Edit current task'
+      c.option '-s','--status STRING',String, "Status of the task. This is either 'needsAction' or 'completed'"
+      c.option '-d','--due-date Date',String, "Set a due date"
+      c.option '-n','--notes STRING', String, "Append notes to task"
+      c.action do |args, options|
+        #defaults
+        options.default :notes => nil, :due_date => nil, :status => nil
+        #Check if status is correct
+        if options.status
+          options.status = "completed" if options.status.downcase == "completed"
+          options.status = "needsAction" if options.status.downcase == "needsaction"
+          if options.status!= 'needsAction' and options.status != "completed"
+            puts "status '#{options.status}' is incorrect, must be either 'needsAction' or 'completed'"
+            #exit
+          end
+        end
+        #make sure status options are correct
+        #parse date if date specified
+        options.due_date = Helper.date_parse(options.due_date) if options.due_date
+        #getting current task and list
+        current_task = Config.data[:current_task]
+        current_list = Config.data[:current_list]
+        #task base information
+        task_info = {title: args.join(" ")}
+        task_info[:notes] = options.notes if options.notes
+        task_info[:due] = options.due_date if options.due_date
+        if options.status
+          task_info[:status] = options.status
+          task_info[:completed] = nil #need to set completed to nil so it works
+        end
+        task_info[:status] = options.status if options.status
+        updated_task = @google_client.update_task(current_list[:id],current_task[:id],task_info)
+        Helper.pretty_print_tasks current_list[:title],[updated_task]
+      end
+    end
+
+    command :notes do |c|
+      c.syntax = 'deed notes <notes> [options]'
+      c.description = 'Append notes to task'
+      c.option '-r','--replace', "Replace the notes instead of appending"
+      c.action do |args, options|
+        #getting current task and list
+        current_task = Config.data[:current_task]
+        current_list = Config.data[:current_list]
+        #task base information
+        if options.replace
+          task_info = {notes: args.join(" ")}
+        else
+          current_notes = current_task[:notes]
+          #If there are notes already, append
+          if current_notes
+            task_info = {notes: current_notes.to_s + "\n" + args.join(" ")}
+          else
+            #if there are no notes, add notes
+            task_info = {notes: args.join(" ")}
+          end
+        end
+        noted_task = @google_client.update_task(current_list[:id],current_task[:id],task_info)
+        Helper.pretty_print_tasks current_list[:title],[noted_task]
+      end
+    end
+
+    command :done do |c|
+      c.syntax = 'deed done'
+      c.description = 'Set current task to \'completed\''
+      c.option "-n","--not","set to not finished"
+      c.action do |args, options|
+        #getting current task and list
+        current_task = Config.data[:current_task]
+        current_list = Config.data[:current_list]
+        #task base information
+        task_info = {status: "completed"} if !options.not
+        task_info = {status: "needsAction", completed: nil} if options.not
+        finished_task = @google_client.update_task(current_list[:id],current_task[:id],task_info)
+        Helper.pretty_print_tasks current_list[:title],[finished_task]
+      end
+    end
+
+    command :delete do |c|
+      c.syntax = 'deed delete'
+      c.description = 'Delete current tast'
+      c.action do |args, options|
+        #getting current task and list
+        current_task = Config.data[:current_task]
+        current_list = Config.data[:current_list]
+        @google_client.delete_task(current_list[:id],current_task[:id])
+        Helper.check_config_tasks @google_client
+        Helper.pretty_print_tasks current_list[:title],[current_task]
+      end
+    end
+
+    command :new_list do |c|
+      c.syntax = 'deed new_list <title>'
+      c.description = 'Crete new list'
+      c.action do |args, options|
+        new_list =  @google_client.new_task_list(title: args.join(" "))
+        Helper.pretty_print_tasks new_list.title
+      end
+    end
+
+    command :edit_list do |c|
+      c.syntax = 'deed edit_list <title>'
+      c.description = 'Change current list title'
+      c.action do |args, options|
+        current_list = Config.data[:current_list]
+        if current_list
+          edited_list = @google_client.update_task_list(current_list[:id],title: args.join(" "))
+          Helper.pretty_print_tasks edited_list.title
+        else
+          Helper.print_message "There is no current list, select a task with 'deed do'"
+        end
+      end
+    end
+
+    command :default do |c|
+      c.syntax = 'doing default'
+      c.description = 'Setup default task list'
+      c.action do |args, options|
+        lists = @google_client.task_lists.items
+        lists.each_with_index do |list,index|
+          puts index.to_s + " - " + list.title
+        end
+        default_list = lists[ask("Which is your default list? : ", Integer)]
+        default_list ={ id: default_list.id,
+                        title: default_list.title,
+                        updated: default_list.updated
+                        }
+        Config.set_value "default_list",default_list
+        Helper.pretty_print_tasks default_list[:title]
+      end
+    end
+
+    command :config do |c|
+      c.syntax = 'doing config'
+      c.description = 'Check if config files are set and if google can '
+      c.action do |args, options|
+        # Check config
+        Deed::Config.new
+        # Check google key file
+        Config.check_google
+        #Check default tasks exit
+        Helper.check_config_tasks
+      end
+    end
+
+    command :open do |c|
+      c.syntax = 'doing open'
+      c.description = 'open the config file for editing'
+      c.action do |args, options|
+        Config.open_file
+      end
+    end
+
+    run!
+  end
+end
+
+if $0 == __FILE__
+  begin
+    cli = Deed_Cli.new
+    #cli.never_trace!
+    cli.run
+  rescue Interrupt
+    puts "\nInterrupted"
+  # rescue Google::Apis::ClientError => e
+  #   puts "\n#{e.message}"
+  end
+end
