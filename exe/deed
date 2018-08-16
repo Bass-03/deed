@@ -125,7 +125,7 @@ class Deed_Cli
           tasks = @google_client.tasks(list.id,options.all).items
           task_count = Helper.pretty_print_tasks list.title,tasks, task_count
         end
-        choice = ask("Which task? : ", Integer)
+        choice = ask("Which task? (index): ", Integer)
         # Find chosen task
         selected_list = nil
         selected_task = nil
@@ -186,8 +186,8 @@ class Deed_Cli
           options.status = "completed" if options.status.downcase == "completed"
           options.status = "needsAction" if options.status.downcase == "needsaction"
           if options.status!= 'needsAction' and options.status != "completed"
-            puts "status '#{options.status}' is incorrect, must be either 'needsAction' or 'completed'"
-            #exit
+            Helper.print_message "status '#{options.status}' is incorrect, must be either 'needsAction' or 'completed'"
+            exit
           end
         end
         #make sure status options are correct
