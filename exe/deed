@@ -102,14 +102,20 @@ class Deed_Cli
 
     command :show do |c|
       c.syntax = 'deed show'
-      c.description = 'List tasks'
+      c.description = 'Show all tasks'
+      c.option '-l','--list STRING',String,'Specify a list'
       c.action do |args, options|
         lists = @google_client.task_lists.items
+        # all tasks, including completed
+        printed_something = false
         lists.each do |list|
-          # all tasks, including completed
           tasks = @google_client.tasks(list.id,true).items
+          if (options.list and list.title.downcase == options.list.downcase ) ^ !options.list
             Helper.pretty_print_tasks(list.title,tasks)
+            printed_something = true
+          end
         end
+        Helper.print_message "No list '#{options.list}'" if !printed_something
       end
     end
 
@@ -311,7 +317,7 @@ class Deed_Cli
 
     command :list do |c|
       c.syntax = 'doing list'
-      c.description = 'Sets the current list'
+      c.description = 'Sets the available lists'
       c.action do |args, options|
         lists = @google_client.task_lists.items
         Helper.print_list_selection lists
