@@ -123,6 +123,7 @@ class Deed_Cli
       c.syntax = 'deed do'
       c.description = 'Set a task as currently doing, its list is also set'
       c.option '-l','--list STRING', String, 'Show a give nlist only'
+      c.option '-i','--index NUMBER', Integer, 'Do a given task, must match global or list index'
       c.option '-a','--all','Show completed tasks aswell'
       c.action do |args, options|
         # Choose the task
@@ -130,10 +131,13 @@ class Deed_Cli
         lists = @google_client.task_lists.items
         task_count = 0
         printed_lists = []
+        # if -i was not set
         lists.each do |list|
           if (options.list and list.title.downcase == options.list.downcase ) ^ !options.list
             tasks = @google_client.tasks(list.id,options.all).items
-            task_count = Helper.pretty_print_tasks list.title,tasks, task_count
+            # only print if -i was not set
+            Helper.pretty_print_tasks list.title,tasks, task_count if !options.index
+            task_count += tasks.size
             printed_lists << {list: list, tasks: tasks}
           end
         end
@@ -141,7 +145,8 @@ class Deed_Cli
           Helper.print_message "No list '#{options.list}'"
           exit
         end
-        choice = ask("Which task? (index): ", Integer)
+        choice = ask("Which task? (index): ", Integer) if !options.index
+        choice = options.index if options.index
         # Find chosen task
         selected_list = nil
         selected_task = nil
