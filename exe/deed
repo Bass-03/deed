@@ -71,8 +71,9 @@ class Deed_Cli
         #parent list could be a hash or a Google::Task
         #make sure parent_list is a hash
         parent_list = parent_list.to_h
-        new_task = @google_client.new_task(parent_list[:id],task_info)
-        Helper.pretty_print_tasks(parent_list[:title],[new_task])
+        @google_client.new_task(parent_list[:id],task_info)
+        tasks = @google_client.tasks(parent_list[:id]).items
+        Helper.pretty_print_tasks(parent_list[:title],tasks)
       end
     end
 

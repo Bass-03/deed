@@ -95,19 +95,21 @@ class Helper
   end
   # pretty print a list of tasks
   # @param listName [String] list title to print
-  # @param tasks [Google:Task] tasks to print
-  # @param doing [Boolean] Print only the current task
+  # @param tasks [Google:Task] Array of tasks to print
+  # @param doing [Google:TaskList] Print only the current task
   # @return last task index
-  def self.pretty_print_tasks(listName,tasks=[],count_start = 0,doing = false)
+  def self.pretty_print_tasks(list,tasks=nil,count_start = 0,doing = false)
+    #ensure list is a hash
+    list = list.to_h
     # get colors from config
     current_task = Config.data[:current_task]
     colors = Config.data[:colors]
     #Print list title
-    STDOUT.printf "%s",Rainbow(listName).color(colors[:list].to_sym).bright.underline
+    STDOUT.printf "%s",Rainbow(list[:title]).color(colors[:list].to_sym).bright.underline
     STDOUT.printf "\n"
     # if no tasks on list
     if !tasks
-      print_message("No tasks on this list") #separator"No tasks on this list"
+      Helper.print_message "No tasks given"
     else
       tasks.each do |task|
         task = task.to_h #make sure task is a hash
