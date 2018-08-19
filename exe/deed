@@ -389,8 +389,7 @@ class Deed_Cli
             deleted_tasks << task
           end
         end
-        tasks = @google_client.tasks(list_to_clear).items
-        Helper.pretty_print_tasks list_to_clear,tasks
+        Helper.pretty_print_tasks list_to_clear,deleted_tasks
       end
     end
 
