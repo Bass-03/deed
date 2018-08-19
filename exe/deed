@@ -71,8 +71,9 @@ class Deed_Cli
         #parent list could be a hash or a Google::Task
         #make sure parent_list is a hash
         parent_list = parent_list.to_h
-        new_task = @google_client.new_task(parent_list[:id],task_info)
-        Helper.pretty_print_tasks(parent_list[:title],[new_task])
+        @google_client.new_task(parent_list[:id],task_info)
+        tasks = @google_client.tasks(parent_list[:id]).items
+        Helper.pretty_print_tasks(parent_list,tasks)
       end
     end
 
@@ -92,8 +93,9 @@ class Deed_Cli
         #task base information
         if current_task and current_list
           task_info = {title: args.join(" "), notes: options.notes, due: options.due_date, parent: current_task[:id]}
-          sub_task = @google_client.new_task(current_list[:id],task_info)
-          Helper.pretty_print_tasks(current_list[:title],[sub_task])
+          @google_client.new_task(current_list[:id],task_info)
+          tasks = @google_client.tasks(current_list[:id]).items
+          Helper.pretty_print_tasks(current_list,tasks)
         else
           Helper.print_message "There is no current task set, run 'deed do'"
         end
@@ -104,14 +106,16 @@ class Deed_Cli
       c.syntax = 'deed show'
       c.description = 'Show all tasks'
       c.option '-l','--list STRING',String,'Specify a list'
+      c.option '-a','--all', "Show completed tasks"
       c.action do |args, options|
+        options.default :all => false
         lists = @google_client.task_lists.items
         # all tasks, including completed
         printed_something = false
         lists.each do |list|
-          tasks = @google_client.tasks(list.id,true).items
+          tasks = @google_client.tasks(list.id,options.all).items
           if (options.list and list.title.downcase == options.list.downcase ) ^ !options.list
-            Helper.pretty_print_tasks(list.title,tasks)
+            Helper.pretty_print_tasks(list,tasks)
             printed_something = true
           end
         end
@@ -124,7 +128,7 @@ class Deed_Cli
       c.description = 'Set a task as currently doing, its list is also set'
       c.option '-l','--list STRING', String, 'Show a give nlist only'
       c.option '-i','--index NUMBER', Integer, 'Do a given task, must match global or list index'
-      c.option '-a','--all','Show completed tasks aswell'
+      c.option '-a','--all','Show completed tasks'
       c.action do |args, options|
         # Choose the task
         options.default :all => false
@@ -136,7 +140,7 @@ class Deed_Cli
           if (options.list and list.title.downcase == options.list.downcase ) ^ !options.list
             tasks = @google_client.tasks(list.id,options.all).items
             # only print if -i was not set
-            Helper.pretty_print_tasks list.title,tasks, task_count if !options.index
+            Helper.pretty_print_tasks list,tasks, task_count if !options.index
             task_count += tasks.size
             printed_lists << {list: list, tasks: tasks}
           end
@@ -160,33 +164,23 @@ class Deed_Cli
             break
           end
         end
-
-        # lists.each do |list|
-        #   tasks_in_list = @google_client.tasks(list.id,options.all).items
-        #   if tasks_in_list #only do this if list has tasks
-        #     if tasks_in_list.size <= choice
-        #       choice -= tasks_in_list.size
-        #     else
-        #       selected_list = list
-        #       selected_task = tasks_in_list[choice]
-        #       break
-        #     end
-        #   end
-        # end
-        #exit if choice does not match anything
         if !selected_task
           Helper.print_message "No task Selected"
           exit
         end
         #Update selected tasks
         Helper.update_selected selected_list,selected_task
+        tasks = @google_client.tasks(selected_list.id).items
+        Helper.pretty_print_tasks selected_list,tasks
       end
     end
 
     command :doing do |c|
       c.syntax = 'deed doing'
-      c.description = 'Shows which task is set to "doing" and its sub tasks'
+      c.description = 'Shows tasks in the current list'
+      c.option '-a','--all','Show completed tasks'
       c.action do |args, options|
+        options.default :all => false
         current_task = Config.data[:current_task]
         current_list = Config.data[:current_list]
         if !current_task or !current_list
@@ -194,13 +188,8 @@ class Deed_Cli
           exit
         end
         # Get tasks in list, including completed
-        tasks_in_list = @google_client.tasks(current_list[:id],true).items
-        # remove all tasks that are not the current task or a subtask of it
-        tasks_in_list.each do |task|
-          tasks_in_list.delete(task) if task.id != current_task[:id] and task.parent != current_task[:id]
-        end
-        # pretty print, including completed
-        Helper.pretty_print_tasks current_list[:title],tasks_in_list
+        tasks = @google_client.tasks(current_list[:id],options.all).items
+        Helper.pretty_print_tasks current_list,tasks
       end
     end
 
@@ -237,8 +226,9 @@ class Deed_Cli
           task_info[:completed] = nil #need to set completed to nil so it works
         end
         task_info[:status] = options.status if options.status
-        updated_task = @google_client.update_task(current_list[:id],current_task[:id],task_info)
-        Helper.pretty_print_tasks current_list[:title],[updated_task]
+        @google_client.update_task(current_list[:id],current_task[:id],task_info)
+        tasks = @google_client.tasks(current_list[:id]).items
+        Helper.pretty_print_tasks current_list,tasks
       end
     end
 
@@ -263,8 +253,9 @@ class Deed_Cli
             task_info = {notes: args.join(" ")}
           end
         end
-        noted_task = @google_client.update_task(current_list[:id],current_task[:id],task_info)
-        Helper.pretty_print_tasks current_list[:title],[noted_task]
+        @google_client.update_task(current_list[:id],current_task[:id],task_info)
+        tasks = @google_client.tasks(current_list[:id]).items
+        Helper.pretty_print_tasks current_list,tasks
       end
     end
 
@@ -279,8 +270,9 @@ class Deed_Cli
         #task base information
         task_info = {status: "completed"} if !options.not
         task_info = {status: "needsAction", completed: nil} if options.not
-        finished_task = @google_client.update_task(current_list[:id],current_task[:id],task_info)
-        Helper.pretty_print_tasks current_list[:title],[finished_task]
+        @google_client.update_task(current_list[:id],current_task[:id],task_info)
+        tasks = @google_client.tasks(current_list[:id],true).items
+        Helper.pretty_print_tasks current_list,tasks
       end
     end
 
@@ -292,8 +284,8 @@ class Deed_Cli
         current_task = Config.data[:current_task]
         current_list = Config.data[:current_list]
         @google_client.delete_task(current_list[:id],current_task[:id])
-        Helper.check_config_tasks @google_client
-        Helper.pretty_print_tasks current_list[:title],[current_task]
+        tasks = @google_client.tasks(current_list[:id],true).items
+        Helper.pretty_print_tasks current_list,tasks
       end
     end
 
@@ -302,7 +294,7 @@ class Deed_Cli
       c.description = 'Crete new list'
       c.action do |args, options|
         new_list =  @google_client.new_task_list(title: args.join(" "))
-        Helper.pretty_print_tasks new_list.title
+        Helper.pretty_print_tasks new_list
       end
     end
 
@@ -313,7 +305,8 @@ class Deed_Cli
         current_list = Config.data[:current_list]
         if current_list
           edited_list = @google_client.update_task_list(current_list[:id],title: args.join(" "))
-          Helper.pretty_print_tasks edited_list.title
+          tasks = @google_client.tasks(edited_list.id).items
+          Helper.pretty_print_tasks edited_list,tasks
         else
           Helper.print_message "There is no current list, select a task with 'deed do'"
         end
@@ -337,20 +330,21 @@ class Deed_Cli
                         updated: default_list.updated
                         }
         Config.set_value "default_list",default_list
-        Helper.pretty_print_tasks default_list[:title]
+        tasks = @google_client.tasks(default_list[:id]).items
+        Helper.pretty_print_tasks default_list,tasks
       end
     end
 
     command :list do |c|
       c.syntax = 'doing list'
-      c.description = 'Sets the available lists'
+      c.description = 'Show the available lists'
       c.action do |args, options|
         lists = @google_client.task_lists.items
         Helper.print_list_selection lists
-        list_index = ask("Which list? (index): ", Integer)
+        list_index = ask("Which is your current list? (index): ", Integer)
         while list_index > lists.size
           Helper.print_message "No List Selected"
-          list_index = ask("Which is your default list? (index): ", Integer)
+          list_index = ask("Which is your current list? (index): ", Integer)
         end
         current_list = lists[list_index]
         current_list ={ id: current_list.id,
@@ -359,7 +353,8 @@ class Deed_Cli
                         }
 
         Config.set_value "current_list",current_list
-        Helper.pretty_print_tasks current_list[:title]
+        tasks = @google_client.tasks(current_list[:id]).items
+        Helper.pretty_print_tasks current_list,tasks
       end
     end
 
@@ -394,7 +389,7 @@ class Deed_Cli
             deleted_tasks << task
           end
         end
-        Helper.pretty_print_tasks list_to_clear[:title],deleted_tasks
+        Helper.pretty_print_tasks list_to_clear,deleted_tasks
       end
     end
 
@@ -437,7 +432,7 @@ if $0 == $PROGRAM_NAME
     cli.run
   rescue Interrupt
     STDOUT.puts "\nInterrupted"
-  rescue Google::Apis::ClientError => e
+  rescue Exception => e
     STDOUT.puts "\nError: " + e.message
     STDOUT.puts "\n" + e.backtrace.join("\n") if debug
   end
